@@ -1,0 +1,159 @@
+#!/bin/bash
+# $Id: addescription,v 1.1 2021/02/02 18:21:35 fulford Exp fulford $
+# $Source: /src/admin/usr/local/etc/RCS/addescription,v $
+# $Revision: 1.1 $
+# Author C W Fulford.
+# Copyright 2019 (c) C W Fulford.
+# Licensed for public use under the LGPL, .
+# For assistance contact fulford@fulford.net 0793 572 8612
+########################################################################
+cmd=`basename $0`
+ver=`echo "$Id: addescription,v 1.1 2021/02/02 18:21:35 fulford Exp fulford $"|awk '{print $3,$4,$5}'`
+syntax="$cmd [-c <configfile>] [-d] [-f <first> [-l <last]]>]] [-s] [-u] [-v]|-V[<Description>]"
+while [ $# -gt 0 ] ;do
+	case $1 in 
+		-c) config=$2;shift 2;;
+		-d) set -x;debug=0; trap read debug;shift;;
+		-f) first=$2;shift 2;;
+		-h) echo $syntax;exit 0;;
+		-l) last=$2;shift 2;;
+		-s) set=0;shift;;
+		-u) ecase=0;shift;;
+		-v) verbose=:;shift;;
+		-V) echo "$cmd $Revision: 1.1 $ $Date: 2021/02/02 18:21:35 $"|awk '{print $1,$3,$6}';exit;;  
+		*) keywords="$keywords $1";shift;;
+	esac
+done
+last=${last:=$first}
+##############################
+carryon () {
+	read -p "Continue [y/n]? " yesno
+	[ $yesno != y ] && exit
+}
+
+getFiles () {
+   dir=`basename \`pwd\`` 
+   case $dir in
+	raw) ext=CR2;;
+	jpg) if [ $ecase ];then ext=JPG ;else ext=jpg; fi;;
+	tif) ext=tif;;
+	*) echo "Extension for $dir unknown" >&2
+	   exit;;
+   esac
+   # Does file exist
+   ls *$first* >/dev/null 2>&1 || {
+	echo "$cmd: $first not found" >&2
+	exit 1
+   }
+   ls *$last* >/dev/null 2>&1 || {
+	echo "$cmd: $last not found" >&2
+	exit 1
+   }
+   if [ "$first" -a "$last" ];then	
+	first=${first}.${ext}
+	last=${last}.${ext}
+   else
+	clear
+	echo 
+	PS3="Select first: "
+	select first in *.$ext ;do
+		clear
+		echo -e "First file = $first\n"
+		break
+	done
+	PS3="Select last: "
+	select last in *$ext ;do
+		clear
+		break
+	done
+   fi
+   farray=(`ls *.$ext | awk '/'$first'/,/'$last'/{printf "%s ",$0}'`)
+}
+
+chkFiles () {
+ 
+	keyword="$@"
+	for ((i=0; i<${#farray[@]}; i++));do
+		[ $verbose ] && echo Checking ${farray[$i]}
+		if ! exiftool -IPTC:keywords ${farray[$i]}|
+		  # Count target files
+		  grep -q "$keyword";then
+			tfiles+=(${farray[$i]})
+		else
+			# Count files with existing keyword
+			gfiles+=(${farray[$i]})
+			#echo ${farray[$i]}
+		fi
+	done
+	[ $verbose ] && {
+		[ ${#tfiles[@]} -gt 0 ] &&{
+			echo "Target files: ${tfiles[*]}" >&2
+		}
+		[ ${#gfiles[@]} -gt 0 ] &&{
+			echo "Files with existing keyword: ${gfiles[*]}" >&2
+		}
+	}
+	if [ ${#gfiles[@]} -gt 0 ];then
+		echo -e "\n\"$keyword\" already exists in ${#gfiles[@]} files:"
+	fi
+	if [ ${#tfiles[@]} -gt 0 ];then
+		echo -e "\n\"$keyword\" required in ${#tfiles[@]} files"
+		#echo $tfiles|pr -t -8 -
+		read -p "Add keyword[y/n/q]? " reply </dev/tty
+		case $reply  in
+			y) return ${#tfiles[@]};;
+			n) return 0;;
+			q) return -1;;
+		esac
+	else
+		echo -e "Nothing to be done for \"$keyword\"">&2
+		return 0
+	fi
+}
+chkKeyword () { 
+	keyword="$@"
+	if  grep -q ^$keyword$ $dict ;then
+		return 0
+	else
+		# Try partial match
+		IFS=: matches=(`awk '/'$keyword'/{printf "%s:",$0}' $dict`)
+
+		# If nothing found offer to edit dictionary 
+		if [ ${#matches[@]} -lt 1 ];then
+			echo "Keyword \"$keyword\" is not available" >&2
+			read -p "Edit keywords now [y]? " yesno </dev/tty 
+			if [ $yesno = "n" ];then 
+				return 1
+			else
+				sudo vi $dict </dev/tty
+ 			fi
+		else
+			for ((i=0; i<${#matches[@]}; i++));do
+				echo "${i} ${matches[$i]}"
+			done
+			read -p "Select words or quit [#/q]: " s </dev/tty
+			keyword="${matches[$s]}"
+		fi
+	fi
+}
+
+setDescription () {
+	keyword="$@"
+	[ $verbose ] && echo N${#tfiles[@]}
+	for ((i=0; i<${#tfiles[@]}; i++));do
+		[ $verbose ] && echo "Updating: ${tfiles[$i]}"
+		exiftool -q -IPTC:Description="$description" ${tfiles[$i]}
+	done
+	rm *original
+}
+
+################# Main Procedure #####################
+getFiles || exit 1 
+if [ ${#description} -lt 1 ];then
+	clear
+	echo 
+	read -p "Enter description:" description
+fi
+setDescription
+echo "Keyword updates completed" 
+
