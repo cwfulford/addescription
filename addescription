@@ -1,14 +1,14 @@
 #!/bin/bash
-# $Id: addescription,v 1.3 2021/02/02 18:42:40 fulford Exp fulford $
+# $Id: addescription,v 1.4 2021/02/02 19:11:12 fulford Exp fulford $
 # $Source: /src/admin/usr/local/etc/RCS/addescription,v $
-# $Revision: 1.3 $
+# $Revision: 1.4 $
 # Author C W Fulford.
 # Copyright 2019 (c) C W Fulford.
 # Licensed for public use under the LGPL, .
 # For assistance contact fulford@fulford.net 0793 572 8612
 ########################################################################
 cmd=`basename $0`
-ver=`echo "$Id: addescription,v 1.3 2021/02/02 18:42:40 fulford Exp fulford $"|awk '{print $3,$4,$5}'`
+ver=`echo "$Id: addescription,v 1.4 2021/02/02 19:11:12 fulford Exp fulford $"|awk '{print $3,$4,$5}'`
 syntax="$cmd [-c <configfile>] [-d] [-f <first> [-l <last]]>]] [-s] [-u] [-v]|-V[<Description>]"
 while [ $# -gt 0 ] ;do
 	case $1 in 
@@ -20,7 +20,7 @@ while [ $# -gt 0 ] ;do
 		-s) set=0;shift;;
 		-u) ecase=0;shift;;
 		-v) verbose=:;shift;;
-		-V) echo "$cmd $Revision: 1.3 $ $Date: 2021/02/02 18:42:40 $"|awk '{print $1,$3,$6}';exit;;  
+		-V) echo "$cmd $Revision: 1.4 $ $Date: 2021/02/02 19:11:12 $"|awk '{print $1,$3,$6}';exit;;  
 		*) description="$1";shift;;
 	esac
 done
@@ -72,12 +72,12 @@ getFiles () {
 
 chkFiles () {
  
-	keyword="$@"
+	description="$@"
 	for ((i=0; i<${#farray[@]}; i++));do
 		[ $verbose ] && echo Checking ${farray[$i]}
-		if ! exiftool -IPTC:keywords ${farray[$i]}|
+		if ! exiftool -IPTC:Description ${farray[$i]}|
 		  # Count target files
-		  grep -q "$keyword";then
+		  grep -q "$description";then
 			tfiles+=(${farray[$i]})
 		else
 			# Count files with existing keyword
@@ -90,16 +90,16 @@ chkFiles () {
 			echo "Target files: ${tfiles[*]}" >&2
 		}
 		[ ${#gfiles[@]} -gt 0 ] &&{
-			echo "Files with existing keyword: ${gfiles[*]}" >&2
+			echo "Files with existing description: ${gfiles[*]}" >&2
 		}
 	}
 	if [ ${#gfiles[@]} -gt 0 ];then
-		echo -e "\n\"$keyword\" already exists in ${#gfiles[@]} files:"
+		echo -e "\n\"$description\" already exists in ${#gfiles[@]} files:"
 	fi
 	if [ ${#tfiles[@]} -gt 0 ];then
-		echo -e "\n\"$keyword\" required in ${#tfiles[@]} files"
+		echo -e "\n\"$description\" required in ${#tfiles[@]} files"
 		#echo $tfiles|pr -t -8 -
-		read -p "Add keyword[y/n/q]? " reply </dev/tty
+		read -p "Add description[y/n/q]? " reply </dev/tty
 		case $reply  in
 			y) return ${#tfiles[@]};;
 			n) return 0;;
@@ -142,7 +142,7 @@ setDescription () {
 	[ $verbose ] && echo N${#tfiles[@]}
 	for ((i=0; i<${#tfiles[@]}; i++));do
 		[ $verbose ] && echo "Updating: ${tfiles[$i]}"
-		exiftool -q -IPTC:Description="$description" ${tfiles[$i]}
+		exiftool -q -Description="$description" ${tfiles[$i]}
 	done
 	rm *original
 }
@@ -154,6 +154,7 @@ if [ ${#description} -lt 1 ];then
 	echo 
 	read -p "Enter description:" description
 fi
+chkFiles
 setDescription "$description"
 echo "Description update completed" 
 
